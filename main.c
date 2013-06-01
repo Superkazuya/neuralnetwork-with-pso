@@ -6,15 +6,13 @@
 int
 main()
 {
-  unsigned   i, n, j, m, k;
+  unsigned int i, n, j, m, k;
+  double       sum;
 
-  double     weight[N_LAY-1][N_MAX][N_MAX];
-  double     sum;
-
-  double     output[N_LAY][N_MAX];
-  double     thresh[N_LAY][N_MAX];
-
-  double     input[N_IN];
+  double       weight[N_LAY-1][N_MAX][N_MAX];
+  double       output[N_LAY][N_MAX];
+  double       thresh[N_LAY][N_MAX];
+  double       input[N_IN];
 
   xmlDoc*  doc;
   xmlNode* matrices = NULL;
@@ -62,11 +60,11 @@ main()
       thresh[i][k] = strtod(matrix, &matrix);
   printf("XML file loaded successfully.\n");
 
-  for(m = 0; m < 11; m++)
-    for(j = 0; j < 11; j++)
+  for(m = 0; m < 2; m++)
+    for(j = 0; j < 2; j++)
     {
-      input[0] = 0.1*m;
-      input[1] = 0.1*j;
+      input[0] = m;
+      input[1] = j;
       printf("%lf, %lf:", input[0], input[1]);
       for(k = 0; k < N_IN; k++) //first layer
 	output[0][k] = NEURO(input[k] - thresh[0][k]);
@@ -78,7 +76,8 @@ main()
 	    sum += weight[i][n][k]*output[i][k];
 	  output[i+1][n] = NEURO(sum);
 	}
-      printf("%lf, %lf\n", output[N_LAY-1][0], output[N_LAY-1][1]);
+      //printf("%lf, %lf\n", output[N_LAY-1][0], output[N_LAY-1][1]);
+      printf("%lf\n", output[N_LAY-1][0]);
     }
 
 #ifdef DEBUG

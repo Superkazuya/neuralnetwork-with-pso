@@ -4,9 +4,9 @@
 #include <math.h>
 #include "config.h"
 
-#define NUM_AGENTS 100
-#define MAX_ITER 50000
-#define INF 65535
+#define NUM_AGENTS 1000
+#define MAX_ITER 10000
+#define INF 1000
 
 #define RAND(a, b) (((a)-(b))*(2.0*rand()/RAND_MAX-1)+(b))
 #define NORM ((double)rand()/RAND_MAX)
@@ -73,18 +73,28 @@ evaluate(agent* array)
     //for every agent
   {
     p = array+j;
-    val = 0;
+    //val = 0;
     //Evaluate
-    for(i = 0; i < 100; i++)
-    {
-      input[0] = NORM;
-      input[1] = NORM;
-      //input[0] = (double)(i)/100;
-      //input[1] = (double)(i)/100;
-      target[0] = input[0];
-      target[1] = input[1];
-      val += eval(p);
-    }
+    input[0] = 0;
+    input[1] = 0;
+    target[0] = 0;
+    //target[1] = 0;
+    val = eval(p);
+    input[0] = 0;
+    input[1] = 1;
+    target[0] = 1;
+    //target[1] = 1;
+    val += eval(p);
+    input[0] = 1;
+    input[1] = 0;
+    target[0] = 1;
+    //target[1] = 1;
+    val += eval(p);
+    input[0] = 1;
+    input[1] = 1;
+    target[0] = 0;
+    //target[1] = 0;
+    val += eval(p);
 
     if(val < p->val_best)
     {
@@ -109,8 +119,8 @@ init_weight(agent* p)
     for(n = 0; n < neuron_num[i+1]; n++)
       for(k = 0; k < neuron_num[i]; k++)
       {
-	p->weight_curr[i][n][k] = RAND(100, 0);
-	p->weight_velo[i][n][k] = RAND(10, 0);
+	p->weight_curr[i][n][k] = RAND(10, 0);
+	p->weight_velo[i][n][k] = RAND(1, 0);
       }
 }
 
@@ -121,8 +131,8 @@ init_thresh(agent* p)
   for(i = 0; i < N_LAY; i++)
     for(k = 0; k < neuron_num[i]; k++)
     {
-      p->thresh_curr[i][k] = RAND(100, 0);
-      p->thresh_velo[i][k] = RAND(10, 0);
+      p->thresh_curr[i][k] = RAND(10, 0);
+      p->thresh_velo[i][k] = RAND(1, 0);
     }
 }
 
@@ -193,7 +203,7 @@ update(agent* array)
 	  p->weight_velo[i][n][k] += weight1*(p->weight_best[i][n][k] - p->weight_curr[i][n][k])
 	    + weight2*(g_weight_best[i][n][k] - p->weight_curr[i][n][k]);
 	  p->weight_curr[i][n][k] += p->weight_velo[i][n][k]; //update_position
-	  if(abs(p->weight_velo[i][n][k]) > INF || abs(p->weight_curr[i][n][k]) > INF)
+	  if(fabs(p->weight_velo[i][n][k]) > INF || fabs(p->weight_curr[i][n][k]) > INF)
 	  {
 	    init_thresh(p);
 	    init_weight(p);
@@ -206,7 +216,7 @@ update(agent* array)
 	p->thresh_velo[i][k] += weight1*(p->thresh_best[i][k] - p->thresh_curr[i][k])
 	  + weight2*(g_thresh_best[i][k] - p->thresh_curr[i][k]);
 	p->thresh_curr[i][k] = p->thresh_velo[i][k]; //update_position
-	if(abs(p->thresh_velo[i][k]) > INF || abs(p->thresh_curr[i][k]) > INF)
+	if(fabs(p->thresh_velo[i][k]) > INF || fabs(p->thresh_curr[i][k]) > INF)
 	{
 	  init_thresh(p);
 	  init_weight(p);
@@ -214,7 +224,7 @@ update(agent* array)
 
       }
   }
-  inherit_weight *= 0.9999;
+  //inherit_weight *= 0.9999;
 }
 
 int
@@ -223,11 +233,12 @@ main()
   agent agents[NUM_AGENTS];
   unsigned int i, counter = 0;
   init_agents(agents);
+  evaluate(agents);
   while(counter++ < MAX_ITER && g_best_val > 0.001)
   {
-    evaluate(agents);
     update(agents);
-    printf("@iteration %d, best = %lf\n", counter, g_best_val);
+    evaluate(agents);
+    printf("@iteration No.%d, best = %lf\n", counter, g_best_val);
   }
   store();
   exit(EXIT_SUCCESS);
