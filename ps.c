@@ -3,20 +3,22 @@
 #include <string.h>
 #include <math.h>
 #include "config.h"
+#include <pthread.h>
 
-#define NUM_AGENTS 1000
-#define MAX_ITER 10000
-#define INF 1000
+#define NUM_AGENTS 3
+#define MAX_ITER 100000
+#define MAX_ERR  0.000000000001
+#define INF 999
 
 #define RAND(a, b) (((a)-(b))*(2.0*rand()/RAND_MAX-1)+(b))
 #define NORM ((double)rand()/RAND_MAX)
 
+//global
 double g_weight_best[N_LAY-1][N_MAX][N_MAX];
 double g_thresh_best[N_LAY][N_MAX];
 double g_best_val = INF;
 
-double input[N_IN];
-double target[N_OUT];
+pthread_mutex_t mutex_g;
 
 typedef struct
 {
@@ -29,13 +31,16 @@ typedef struct
   double thresh_velo[N_LAY][N_MAX];
 
   double val_best;
+
+  double input[N_IN];
+  double target[N_OUT];
 } agent;
 
 //int domain[NUM_DIM][2];
 
 static double eval(agent         *);
 static void   evaluate(agent     *);
-static void   init_agents(agent  *);
+static void   init(agent  *);
 static void   init_thresh(agent  *);
 static void   init_weight(agent  *);
 static void   store();
@@ -46,9 +51,9 @@ eval(agent* p)
 {
   unsigned int i, k, n;
   double sum;
-  static double output[N_LAY][N_MAX];
+  double output[N_LAY][N_MAX];
   for(k = 0; k < N_IN; k++)
-    output[0][k] = NEURO(input[k] - p->thresh_curr[0][k]);
+    output[0][k] = NEURO(p->input[k] - p->thresh_curr[0][k]);
   for(i = 0; i < N_LAY-1; i++) //following layer
     for(n = 0; n < neuron_num[i+1]; n++)
     {
@@ -59,54 +64,49 @@ eval(agent* p)
     }
   sum = 0;
   for(k = 0; k < N_OUT; k++)
-    sum += fabs(output[N_LAY-1][k] - target[k]);
+    sum += fabs(output[N_LAY-1][k] - p->target[k]);
   return(sum);
 }
 
 void
-evaluate(agent* array)
+evaluate(agent* p)
 {
-  unsigned int i, j;
   double val;
-  agent* p;
-  for(j = 0; j < NUM_AGENTS; j++)
-    //for every agent
-  {
-    p = array+j;
-    //val = 0;
-    //Evaluate
-    input[0] = 0;
-    input[1] = 0;
-    target[0] = 0;
-    //target[1] = 0;
-    val = eval(p);
-    input[0] = 0;
-    input[1] = 1;
-    target[0] = 1;
-    //target[1] = 1;
-    val += eval(p);
-    input[0] = 1;
-    input[1] = 0;
-    target[0] = 1;
-    //target[1] = 1;
-    val += eval(p);
-    input[0] = 1;
-    input[1] = 1;
-    target[0] = 0;
-    //target[1] = 0;
-    val += eval(p);
+  //Evaluate
+  p->input[0] = 0;
+  p->input[1] = 0;
+  p->target[0] = 0;
+  //target[1] = 0;
+  val = eval(p);
+  p->input[0] = 0;
+  p->input[1] = 1;
+  p->target[0] = 1;
+  //target[1] = 1;
+  val += eval(p);
+  p->input[0] = 1;
+  p->input[1] = 0;
+  p->target[0] = 1;
+  //target[1] = 1;
+  val += eval(p);
+  p->input[0] = 1;
+  p->input[1] = 1;
+  p->target[0] = 0;
+  //target[1] = 0;
+  val += eval(p);
 
-    if(val < p->val_best)
+  if(val < p->val_best)
+  {
+    p->val_best = val;
+    memcpy(p->weight_best, p->weight_curr, sizeof(p->weight_best));
+    memcpy(p->thresh_best, p->thresh_curr, sizeof(p->thresh_best));
+    if(val < g_best_val)
     {
-      p->val_best = val;
-      memcpy(p->weight_best, p->weight_curr, sizeof(p->weight_best));
-      memcpy(p->thresh_best, p->thresh_curr, sizeof(p->thresh_best));
-      if(val < g_best_val)
-      {
-	g_best_val = val;
-	memcpy(g_weight_best, p->weight_curr, sizeof(g_weight_best));
-	memcpy(g_thresh_best, p->thresh_curr, sizeof(g_thresh_best));
-      }
+      pthread_mutex_lock(&mutex_g);
+      g_best_val = val;
+      printf("New global best found! %lf\n", val);
+      memcpy(g_weight_best, p->weight_curr, sizeof(g_weight_best));
+      memcpy(g_thresh_best, p->thresh_curr, sizeof(g_thresh_best));
+      pthread_mutex_unlock(&mutex_g);
     }
   }
 }
@@ -137,15 +137,11 @@ init_thresh(agent* p)
 }
 
 void
-init_agents(agent* array)
+init(agent* array)
 {
-  unsigned int j;
-  for(j = 0; j < NUM_AGENTS; j++)
-  {
-    array[j].val_best = INF;
-    init_weight(array+j);
-    init_thresh(array+j);
-  }
+  array->val_best = INF;
+  init_weight(array);
+  init_thresh(array);
 }
 
 void
@@ -183,64 +179,89 @@ store()
 }
 
 void
-update(agent* array)
+update(agent* p)
 {
-  unsigned int i, j, k, n;
+  unsigned int i, k, n;
   static float inherit_weight = 1;
   float weight1;
   float weight2;
-  agent* p;
-  for(j = 0; j < NUM_AGENTS; j++)
-  {
-    weight1 = RAND(2, 0);
-    weight2 = RAND(2, 0);
-    p = array+j;
-    for(i = 0; i < N_LAY-1; i++)
-      for(n = 0; n < neuron_num[i+1]; n++)
-	for(k = 0; k < neuron_num[i]; k++)
-	{
-	  p->weight_velo[i][n][k] *= inherit_weight;
-	  p->weight_velo[i][n][k] += weight1*(p->weight_best[i][n][k] - p->weight_curr[i][n][k])
-	    + weight2*(g_weight_best[i][n][k] - p->weight_curr[i][n][k]);
-	  p->weight_curr[i][n][k] += p->weight_velo[i][n][k]; //update_position
-	  if(fabs(p->weight_velo[i][n][k]) > INF || fabs(p->weight_curr[i][n][k]) > INF)
-	  {
-	    init_thresh(p);
-	    init_weight(p);
-	  }
-	}
-    for(i = 0; i < N_LAY; i++)
+  weight1 = RAND(2, 0);
+  weight2 = RAND(2, 0);
+  for(i = 0; i < N_LAY-1; i++)
+    for(n = 0; n < neuron_num[i+1]; n++)
       for(k = 0; k < neuron_num[i]; k++)
       {
-	p->thresh_velo[i][k] *= inherit_weight;
-	p->thresh_velo[i][k] += weight1*(p->thresh_best[i][k] - p->thresh_curr[i][k])
-	  + weight2*(g_thresh_best[i][k] - p->thresh_curr[i][k]);
-	p->thresh_curr[i][k] = p->thresh_velo[i][k]; //update_position
-	if(fabs(p->thresh_velo[i][k]) > INF || fabs(p->thresh_curr[i][k]) > INF)
+	p->weight_velo[i][n][k] *= inherit_weight;
+	p->weight_velo[i][n][k] += weight1*(p->weight_best[i][n][k] - p->weight_curr[i][n][k])
+	  + weight2*(g_weight_best[i][n][k] - p->weight_curr[i][n][k]);
+	p->weight_curr[i][n][k] += p->weight_velo[i][n][k]; //update_position
+	if(fabs(p->weight_velo[i][n][k]) > INF || fabs(p->weight_curr[i][n][k]) > INF)
 	{
 	  init_thresh(p);
 	  init_weight(p);
 	}
-
       }
+  for(i = 0; i < N_LAY; i++)
+    for(k = 0; k < neuron_num[i]; k++)
+    {
+      p->thresh_velo[i][k] *= inherit_weight;
+      p->thresh_velo[i][k] += weight1*(p->thresh_best[i][k] - p->thresh_curr[i][k])
+	+ weight2*(g_thresh_best[i][k] - p->thresh_curr[i][k]);
+      p->thresh_curr[i][k] = p->thresh_velo[i][k]; //update_position
+      if(fabs(p->thresh_velo[i][k]) > INF || fabs(p->thresh_curr[i][k]) > INF)
+      {
+	init_thresh(p);
+	init_weight(p);
+      }
+
+    }
+  inherit_weight *= 0.9999;
+}
+
+void*
+thread_agent(void* argv)
+{
+  agent smith;
+  unsigned int counter = 0;
+  init(&smith);
+  printf("Thread %d ready to go!\n", *(int*)argv);
+  *(int*)argv = 0;
+  while(counter++ < MAX_ITER)
+  {
+    evaluate(&smith);
+    if(g_best_val <= MAX_ERR)
+      pthread_exit(argv);
+    update(&smith);
   }
-  //inherit_weight *= 0.9999;
+  *(int*)argv = 1;
+  pthread_exit(argv);
 }
 
 int
 main()
 {
-  agent agents[NUM_AGENTS];
   unsigned int i, counter = 0;
-  init_agents(agents);
-  evaluate(agents);
-  while(counter++ < MAX_ITER && g_best_val > 0.001)
+  int array[NUM_AGENTS];
+  void* status;
+  pthread_t pthread_id[NUM_AGENTS];
+  pthread_attr_t pthread_attr;
+  pthread_mutex_init(&mutex_g, NULL);
+  pthread_attr_init(&pthread_attr);
+  pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_JOINABLE);
+  for(i = 0; i < NUM_AGENTS; i++)
   {
-    update(agents);
-    evaluate(agents);
-    printf("@iteration No.%d, best = %lf\n", counter, g_best_val);
+    array[i] = i;
+    pthread_create(pthread_id+i, &pthread_attr, thread_agent, (void *)(array+i));
+  }
+  pthread_attr_destroy(&pthread_attr);
+
+  for(i = 0; i < NUM_AGENTS; i++)
+  {
+    pthread_join(pthread_id[i], &status);
+    printf("%d\n", *(int*)status);
   }
   store();
   exit(EXIT_SUCCESS);
 }
+
 
