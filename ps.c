@@ -103,10 +103,11 @@ evaluate(agent* p)
     {
       pthread_mutex_lock(&mutex_g);
       g_best_val = val;
-      printf("New global best found! %lf\n", val);
+      printf("New global best found! %.10lf\n", val);
       memcpy(g_weight_best, p->weight_curr, sizeof(g_weight_best));
       memcpy(g_thresh_best, p->thresh_curr, sizeof(g_thresh_best));
-      pthread_mutex_unlock(&mutex_g);
+      if(g_best_val > MAX_ERR) //result satisfactory, lock global value
+	pthread_mutex_unlock(&mutex_g);
     }
   }
 }
@@ -258,8 +259,14 @@ main()
   for(i = 0; i < NUM_AGENTS; i++)
   {
     pthread_join(pthread_id[i], &status);
-    printf("%d\n", *(int*)status);
+    printf("Thread return: %d.\n", *(int*)status);
+    if(*(int*)status == 0)
+      goto STORE;
   }
+  printf("BAD ENDING.\n");
+  exit(EXIT_FAILURE);
+STORE:
+  printf("GOOD ENDING.\n");
   store();
   exit(EXIT_SUCCESS);
 }
