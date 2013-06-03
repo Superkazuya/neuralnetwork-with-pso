@@ -4,6 +4,8 @@
 #include <math.h>
 #include "config.h"
 #include <pthread.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
 
 #define NUM_AGENTS 3
 #define MAX_ITER 100000
@@ -149,34 +151,48 @@ void
 store()
 {
   unsigned int i, n, k;
-  FILE* fp = fopen(FILENAME, "w+");
-  fprintf(fp, "<?xml version=\"1.0\" ?>\n");
-  fprintf(fp, "<matrices>\n");
-  fprintf(fp, "<weight>\n");
+  xmlDoc* doc = NULL;
+  xmlNode* matrices = NULL;
+  xmlNode* node = NULL;
+  char buff[4096] = "\0";
+  char tmp[64];
+
+  doc = xmlNewDoc(BAD_CAST "1.0");
+  matrices = xmlNewNode(NULL, BAD_CAST "matrices");
+  xmlDocSetRootElement(doc, matrices);
+
   for(i = 0; i < N_LAY-1; i++)
   {
     for(n = 0; n < N_MAX; n++)
     {
       for(k = 0; k < N_MAX; k++)
-	fprintf(fp, " %lf  ", g_weight_best[i][n][k]);
-      fprintf(fp, "\n");
+      {
+	sprintf(tmp, " %lf  ", g_weight_best[i][n][k]);
+	strcat(buff, tmp);
+      }
+      strcat(buff, "\n");
     }
-    fprintf(fp, "\n");
+    strcat(buff, "\n");
   }
-  fprintf(fp, "</weight>\n\n");
+  xmlNewChild(matrices, NULL, BAD_CAST "weight", BAD_CAST buff);
 
     //threshold
-  fprintf(fp, "<thresh>\n");
+  strcpy(buff, "\0");
   for(i = 0; i < N_LAY; i++)
   {
       for(k = 0; k < N_MAX-1; k++)
-	fprintf(fp, " %lf  ", g_thresh_best[i][k]);
-    fprintf(fp, "\n");
+      {
+	sprintf(tmp, " %lf  ", g_thresh_best[i][k]);
+	strcat(buff, tmp);
+      }
+    strcat(buff, "\n");
   } 
-  fprintf(fp, "</thresh>\n");
-  fprintf(fp, "</matrices>\n");
-  fclose(fp);
+  xmlNewChild(matrices, NULL, BAD_CAST "thresh", BAD_CAST buff);
+  xmlSaveFormatFile(FILENAME, doc, 0);
   printf("data successfully stored.\n");
+  xmlFreeDoc(doc);
+  xmlCleanupParser();
+  xmlMemoryDump();
 }
 
 void

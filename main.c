@@ -17,7 +17,6 @@ main()
   xmlDoc*  doc;
   xmlNode* matrices = NULL;
   xmlNode* node;
-  xmlNode* layer;
 
   char* matrix, rest;
   //xml parse
@@ -34,7 +33,7 @@ main()
 #endif
 
   //find node weight
-  node = matrices->xmlChildrenNode->next;
+  node = matrices->xmlChildrenNode;
 #ifdef DEBUG
   printf("node1 name: %s\n", node->name);
 #endif
@@ -48,7 +47,7 @@ main()
       for(k = 0; k < N_MAX; k++)
 	weight[i][n][k] = strtod(matrix, &matrix);
 
-  node = node->next->next;
+  node = node->next;
 #ifdef DEBUG
   printf("node2 name: %s\n", node->name);
 #endif
