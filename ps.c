@@ -188,7 +188,10 @@ store()
     strcat(buff, "\n");
   } 
   xmlNewChild(matrices, NULL, BAD_CAST "thresh", BAD_CAST buff);
-  xmlSaveFormatFile(FILENAME, doc, 0);
+
+  xmlKeepBlanksDefault(0) ;//libxml2 global variable .
+  xmlIndentTreeOutput = 1 ;// indent .with \n 
+  xmlSaveFormatFile(FILENAME, doc, 1);
   printf("data successfully stored.\n");
   xmlFreeDoc(doc);
   xmlCleanupParser();

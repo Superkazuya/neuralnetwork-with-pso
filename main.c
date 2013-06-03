@@ -20,7 +20,10 @@ main()
 
   char* matrix, rest;
   //xml parse
-  if((doc = xmlReadFile(FILENAME, NULL, 0)) == NULL)
+
+  xmlKeepBlanksDefault(0) ;//libxml2 global variable .
+  xmlIndentTreeOutput = 1 ;// indent .with \n 
+  if((doc = xmlReadFile(FILENAME, NULL, 1)) == NULL)
   {
     printf("Error opening XML file.\n");
     return(EXIT_FAILURE);
