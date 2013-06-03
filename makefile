@@ -1,7 +1,7 @@
 .PHONY: all
-all : ps main
-ps : ps.c
+all : ps.out nn.out
+ps.out : ps.c
 	gcc $^ -o $@ -lm -pthread
 
-main : main.c
+nn.out : main.c
 	gcc $^ -o $@ -I/usr/include/libxml2 -lm -lxml2
